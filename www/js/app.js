@@ -5,7 +5,7 @@
 // the 2nd parameter is an array of 'requires'
 angular.module('starter', ['ionic'])
 
-.controller("FileController", function($scope, $ionicLoading) {
+.controller("FileController", function($scope, $ionicLoading, $ionicPlatform, $fileFactory) {
 	$scope.download = function() {
 		$ionicLoading.show({
 			template: 'Loading...'
@@ -89,6 +89,72 @@ angular.module('starter', ['ionic'])
 			console.log("Error requesting filesystem");
 		});
 	}
+	var fs = new $fileFactory();
+    $ionicPlatform.ready(function() {
+        fs.getEntriesAtRoot().then(function(result) {
+            $scope.files = result;
+        }, function(error) {
+            console.error(error);
+        });
+        $scope.getContents = function(path) {
+            fs.getEntries(path).then(function(result) {
+                $scope.files = result;
+                $scope.files.unshift({name: "[parent]"});
+                fs.getParentDirectory(path).then(function(result) {
+                    result.name = "[parent]";
+                    $scope.files[0] = result;
+                });
+            });
+        }
+    });
+})
+
+.factory("$fileFactory", function($q) {
+    var File = function() { };
+    File.prototype = {
+        getParentDirectory: function(path) {
+            var deferred = $q.defer();
+            window.resolveLocalFileSystemURI(path, function(fileSystem) {
+                fileSystem.getParent(function(result) {
+                    deferred.resolve(result);
+                }, function(error) {
+                    deferred.reject(error);
+                });
+            }, function(error) {
+                deferred.reject(error);
+            });
+            return deferred.promise;
+        },
+        getEntriesAtRoot: function() {
+            var deferred = $q.defer();
+            window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, function(fileSystem) {
+                var directoryReader = fileSystem.root.createReader();
+                directoryReader.readEntries(function(entries) {
+                    deferred.resolve(entries);
+                }, function(error) {
+                    deferred.reject(error);
+                });
+            }, function(error) {
+                deferred.reject(error);
+            });
+            return deferred.promise;
+        },
+        getEntries: function(path) {
+            var deferred = $q.defer();
+            window.resolveLocalFileSystemURI(path, function(fileSystem) {
+                var directoryReader = fileSystem.createReader();
+                directoryReader.readEntries(function(entries) {
+                    deferred.resolve(entries);
+                }, function(error) {
+                    deferred.reject(error);
+                });
+            }, function(error) {
+                deferred.reject(error);
+            });
+            return deferred.promise;
+        }
+    };
+    return File;
 })
 
 .run(function($ionicPlatform) {
